@@ -1,0 +1,33 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# --- gprStudio run artifacts ---
+# Saved scenes (*.gprstudio.json) are kept; simulation outputs are not.
+gpr_studio/projects/**/*.in
+gpr_studio/projects/**/*.out
+gpr_studio/projects/**/*.vti
+gpr_studio/projects/**/*.h5
+gpr_studio/projects/**/*.png
+gpr_studio/projects/**/*.log
+
+# --- Vendored gprMax build artifacts ---
+# The compiled extensions (*.pyd/*.so) are committed so the app runs out of the
+# box on this machine; only the intermediate build products are ignored.
+vendor/gprMax/build/
+vendor/gprMax/dist/
+vendor/gprMax/**/*.c
+# Keep the compiled solver extensions (the standard *.py[cod] rule above matches
+# *.pyd — re-include the vendored ones so a clone runs without rebuilding).
+!vendor/gprMax/**/*.pyd
+!vendor/gprMax/**/*.so
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

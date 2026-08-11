@@ -1,0 +1,193 @@
+{
+  "schema": 1,
+  "project_name": "diagonal_crack",
+  "title": "Diagonal crack in slab",
+  "equipment_key": "gp8000",
+  "center_freq_ghz": 2.0,
+  "tx_rx_offset_mm": 40.0,
+  "scan_length_cm": 70.0,
+  "trace_step_mm": 8.0,
+  "max_depth_cm": 35.0,
+  "pml_cells": 10,
+  "dx_override_mm": 0.0,
+  "layers": [
+    {
+      "material": "dry_concrete",
+      "thickness_cm": 30.0
+    },
+    {
+      "material": "dry_sand",
+      "thickness_cm": 20.0
+    }
+  ],
+  "rebar": [
+    {
+      "label": "Rebar mat",
+      "depth_cm": 5.0,
+      "diameter_mm": 12.0,
+      "spacing_cm": 20.0,
+      "count": 4,
+      "x_start_cm": 8.0,
+      "material": "steel"
+    }
+  ],
+  "bars": [],
+  "voids": [],
+  "diagonals": [
+    {
+      "label": "Diagonal crack",
+      "x_cm": 25.0,
+      "depth_cm": 3.0,
+      "length_cm": 28.0,
+      "angle_deg": 55.0,
+      "aperture_mm": 6.0,
+      "material": "air"
+    }
+  ],
+  "ovals": [],
+  "materials": [
+    {
+      "name": "air",
+      "label": "Air / void",
+      "er": 1.0,
+      "sigma": 0.0,
+      "mu_r": 1.0,
+      "sigma_star": 0.0,
+      "color": "#eaf6ff",
+      "note": "Empty (air-filled) void or defect",
+      "is_pec": false
+    },
+    {
+      "name": "dry_concrete",
+      "label": "Dry / cured concrete",
+      "er": 6.0,
+      "sigma": 0.01,
+      "mu_r": 1.0,
+      "sigma_star": 0.0,
+      "color": "#b0b0b0",
+      "note": "Typical background for mature concrete",
+      "is_pec": false
+    },
+    {
+      "name": "wet_concrete",
+      "label": "Wet / saturated concrete",
+      "er": 12.0,
+      "sigma": 0.05,
+      "mu_r": 1.0,
+      "sigma_star": 0.0,
+      "color": "#7d8a99",
+      "note": "High moisture content",
+      "is_pec": false
+    },
+    {
+      "name": "fresh_concrete",
+      "label": "Fresh / green concrete",
+      "er": 9.0,
+      "sigma": 0.03,
+      "mu_r": 1.0,
+      "sigma_star": 0.0,
+      "color": "#9aa7a0",
+      "note": "Recently poured / curing",
+      "is_pec": false
+    },
+    {
+      "name": "asphalt",
+      "label": "Asphalt",
+      "er": 4.0,
+      "sigma": 0.005,
+      "mu_r": 1.0,
+      "sigma_star": 0.0,
+      "color": "#3a3a3a",
+      "note": "Overlay / wearing course",
+      "is_pec": false
+    },
+    {
+      "name": "dry_sand",
+      "label": "Dry sand (subbase)",
+      "er": 4.0,
+      "sigma": 0.001,
+      "mu_r": 1.0,
+      "sigma_star": 0.0,
+      "color": "#e4d5a1",
+      "note": "Dry granular foundation",
+      "is_pec": false
+    },
+    {
+      "name": "wet_sand",
+      "label": "Wet sand",
+      "er": 25.0,
+      "sigma": 0.02,
+      "mu_r": 1.0,
+      "sigma_star": 0.0,
+      "color": "#c9b06a",
+      "note": "Saturated granular base",
+      "is_pec": false
+    },
+    {
+      "name": "gravel",
+      "label": "Gravel / crushed base",
+      "er": 6.0,
+      "sigma": 0.005,
+      "mu_r": 1.0,
+      "sigma_star": 0.0,
+      "color": "#a89a86",
+      "note": "Compacted base course",
+      "is_pec": false
+    },
+    {
+      "name": "clay",
+      "label": "Clay soil",
+      "er": 20.0,
+      "sigma": 0.1,
+      "mu_r": 1.0,
+      "sigma_star": 0.0,
+      "color": "#8a6a4a",
+      "note": "Lossy cohesive subgrade",
+      "is_pec": false
+    },
+    {
+      "name": "pvc",
+      "label": "PVC (conduit)",
+      "er": 3.0,
+      "sigma": 0.0,
+      "mu_r": 1.0,
+      "sigma_star": 0.0,
+      "color": "#d8d0c0",
+      "note": "Plastic duct / conduit wall",
+      "is_pec": false
+    },
+    {
+      "name": "eps",
+      "label": "EPS (foam insulation)",
+      "er": 1.1,
+      "sigma": 0.0,
+      "mu_r": 1.0,
+      "sigma_star": 0.0,
+      "color": "#f2e8f2",
+      "note": "Expanded polystyrene: insulation, void former, sandwich core",
+      "is_pec": false
+    },
+    {
+      "name": "water",
+      "label": "Water (wet void)",
+      "er": 81.0,
+      "sigma": 0.05,
+      "mu_r": 1.0,
+      "sigma_star": 0.0,
+      "color": "#4a90d9",
+      "note": "Water-filled defect / duct",
+      "is_pec": false
+    },
+    {
+      "name": "steel",
+      "label": "Steel rebar / metal",
+      "er": 1.0,
+      "sigma": 0.0,
+      "mu_r": 1.0,
+      "sigma_star": 0.0,
+      "color": "#202020",
+      "note": "Reinforcement, sheath, plate -> perfect conductor",
+      "is_pec": true
+    }
+  ]
+}

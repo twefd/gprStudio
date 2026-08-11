@@ -1,0 +1,8 @@
+# Streamlit config for gprStudio.
+[browser]
+# Don't send usage statistics.
+gatherUsageStats = false
+
+[server]
+# Auto-reload the app when source files change (handy during development).
+runOnSave = true

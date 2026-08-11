@@ -1,0 +1,23 @@
+# gprStudio dependencies.
+#
+# gprStudio is a Streamlit front-end on top of the gprMax FDTD solver, which is
+# vendored under vendor/gprMax (see README). Installing this file gives you both
+# the Streamlit UI packages and gprMax's own runtime requirements, so a single
+#   pip install -r requirements.txt
+# sets up everything the app needs. You still build gprMax's Cython extensions
+# once (see README) unless the committed compiled extensions match your Python.
+
+# --- Studio UI ---
+streamlit>=1.34
+streamlit-image-coordinates>=0.4.0
+
+# --- gprMax solver runtime (mirrors vendor/gprMax/requirements.txt) ---
+colorama>=0.4.6
+Cython>=3.0.11
+h5py>=3.12.1
+matplotlib>=3.8.0
+numpy>=1.26.4
+psutil>=5.9.0
+scipy>=1.15.1
+terminaltables>=3.1.10
+tqdm>=4.67.1

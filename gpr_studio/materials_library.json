@@ -1,0 +1,145 @@
+[
+  {
+    "name": "air",
+    "label": "Air / void",
+    "er": 1.0,
+    "sigma": 0.0,
+    "mu_r": 1.0,
+    "sigma_star": 0.0,
+    "color": "#eaf6ff",
+    "note": "Empty (air-filled) void or defect",
+    "is_pec": false
+  },
+  {
+    "name": "dry_concrete",
+    "label": "Dry / cured concrete",
+    "er": 6.0,
+    "sigma": 0.01,
+    "mu_r": 1.0,
+    "sigma_star": 0.0,
+    "color": "#b0b0b0",
+    "note": "Typical background for mature concrete",
+    "is_pec": false
+  },
+  {
+    "name": "wet_concrete",
+    "label": "Wet / saturated concrete",
+    "er": 12.0,
+    "sigma": 0.05,
+    "mu_r": 1.0,
+    "sigma_star": 0.0,
+    "color": "#6fa3dc",
+    "note": "High moisture content",
+    "is_pec": false
+  },
+  {
+    "name": "fresh_concrete",
+    "label": "Fresh / green concrete",
+    "er": 9.0,
+    "sigma": 0.03,
+    "mu_r": 1.0,
+    "sigma_star": 0.0,
+    "color": "#5ce06d",
+    "note": "Recently poured / curing",
+    "is_pec": false
+  },
+  {
+    "name": "asphalt",
+    "label": "Asphalt",
+    "er": 4.0,
+    "sigma": 0.005,
+    "mu_r": 1.0,
+    "sigma_star": 0.0,
+    "color": "#3a3a3a",
+    "note": "Overlay / wearing course",
+    "is_pec": false
+  },
+  {
+    "name": "dry_sand",
+    "label": "Dry sand (subbase)",
+    "er": 4.0,
+    "sigma": 0.001,
+    "mu_r": 1.0,
+    "sigma_star": 0.0,
+    "color": "#e4d5a1",
+    "note": "Dry granular foundation",
+    "is_pec": false
+  },
+  {
+    "name": "wet_sand",
+    "label": "Wet sand",
+    "er": 25.0,
+    "sigma": 0.02,
+    "mu_r": 1.0,
+    "sigma_star": 0.0,
+    "color": "#c9b06a",
+    "note": "Saturated granular base",
+    "is_pec": false
+  },
+  {
+    "name": "gravel",
+    "label": "Gravel / crushed base",
+    "er": 6.0,
+    "sigma": 0.005,
+    "mu_r": 1.0,
+    "sigma_star": 0.0,
+    "color": "#a89a86",
+    "note": "Compacted base course",
+    "is_pec": false
+  },
+  {
+    "name": "clay",
+    "label": "Clay soil",
+    "er": 20.0,
+    "sigma": 0.1,
+    "mu_r": 1.0,
+    "sigma_star": 0.0,
+    "color": "#6b1da3",
+    "note": "Lossy cohesive subgrade",
+    "is_pec": false
+  },
+  {
+    "name": "pvc",
+    "label": "PVC (conduit)",
+    "er": 3.0,
+    "sigma": 0.0,
+    "mu_r": 1.0,
+    "sigma_star": 0.0,
+    "color": "#510e10",
+    "note": "Plastic duct / conduit wall",
+    "is_pec": false
+  },
+  {
+    "name": "eps",
+    "label": "EPS (foam insulation)",
+    "er": 1.1,
+    "sigma": 0.0,
+    "mu_r": 1.0,
+    "sigma_star": 0.0,
+    "color": "#ff9bff",
+    "note": "Expanded polystyrene: insulation, void former, sandwich core",
+    "is_pec": false
+  },
+  {
+    "name": "water",
+    "label": "Water (wet void)",
+    "er": 81.0,
+    "sigma": 0.05,
+    "mu_r": 1.0,
+    "sigma_star": 0.0,
+    "color": "#2891ff",
+    "note": "Water-filled defect / duct",
+    "is_pec": false
+  },
+  {
+    "name": "steel",
+    "label": "Steel rebar / metal",
+    "er": 1.0,
+    "sigma": 0.0,
+    "mu_r": 1.0,
+    "sigma_star": 0.0,
+    "color": "#202020",
+    "note": "Reinforcement, sheath, plate -> perfect conductor",
+    "is_pec": true
+  }
+]
