@@ -15,6 +15,7 @@ import os
 import subprocess
 import sys
 import glob
+import shutil
 import time
 from pathlib import Path
 from typing import Callable, Iterator
@@ -55,18 +56,79 @@ def write_infile(text: str, name: str) -> Path:
     return in_path
 
 
+# --------------------------------------------------------------------------- #
+# GPU (CUDA) acceleration
+# --------------------------------------------------------------------------- #
+def gpu_status() -> dict:
+    """Report whether gprMax's CUDA GPU solver can be used here.
+
+    gprMax accelerates the FDTD loops on an NVIDIA GPU via ``pycuda``, which
+    JIT-compiles the CUDA kernels with ``nvcc`` at run time. So a usable setup
+    needs three things: a CUDA GPU (seen via ``nvidia-smi``), the ``pycuda``
+    module in the solver's Python env, and ``nvcc`` (the CUDA Toolkit) on PATH.
+
+    Returns a dict: ``cards`` [(id, name, mem_MiB)], ``pycuda`` bool, ``nvcc``
+    bool, ``ready`` bool, and a human ``message``.
+    """
+    cards: list[tuple[int, str, str]] = []
+    smi = shutil.which("nvidia-smi")
+    if smi:
+        try:
+            out = subprocess.run(
+                [smi, "--query-gpu=index,name,memory.total",
+                 "--format=csv,noheader,nounits"],
+                capture_output=True, text=True, timeout=8)
+            for line in out.stdout.strip().splitlines():
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) >= 2 and parts[0].isdigit():
+                    cards.append((int(parts[0]), parts[1],
+                                  parts[2] if len(parts) > 2 else "?"))
+        except Exception:  # noqa: BLE001 - detection must never raise
+            pass
+
+    have_pycuda = False
+    try:
+        r = subprocess.run(
+            [env_python(), "-c", "import pycuda.driver as d; d.init(); print('ok')"],
+            capture_output=True, text=True, timeout=25, cwd=str(GPRMAX_ROOT))
+        have_pycuda = r.returncode == 0 and "ok" in r.stdout
+    except Exception:  # noqa: BLE001
+        pass
+
+    have_nvcc = shutil.which("nvcc") is not None
+    ready = bool(cards) and have_pycuda and have_nvcc
+
+    if ready:
+        msg = "GPU ready."
+    elif not cards:
+        msg = "No NVIDIA GPU detected (nvidia-smi not available)."
+    else:
+        missing = []
+        if not have_pycuda:
+            missing.append("`pycuda` (pip install pycuda)")
+        if not have_nvcc:
+            missing.append("CUDA Toolkit / `nvcc` on PATH")
+        msg = "GPU found but not usable yet — missing: " + ", ".join(missing)
+    return {"cards": cards, "pycuda": have_pycuda, "nvcc": have_nvcc,
+            "ready": ready, "message": msg}
+
+
 def run_gprmax(in_path: Path, n_traces: int | None = None,
                geometry_only: bool = False,
-               on_line: Callable[[str], None] | None = None) -> int:
+               on_line: Callable[[str], None] | None = None,
+               gpu: int | None = None) -> int:
     """Run gprMax on ``in_path``.  Streams output lines to ``on_line``.
 
-    Returns the process exit code.
+    ``gpu`` selects the CUDA device id to run the FDTD solver on (``None`` =
+    CPU/OpenMP). Returns the process exit code.
     """
     cmd = [env_python(), "-m", "gprMax", str(in_path)]
     if n_traces and n_traces > 1:
         cmd += ["-n", str(n_traces)]
     if geometry_only:
         cmd += ["--geometry-only"]
+    if gpu is not None:
+        cmd += ["-gpu", str(gpu)]
 
     proc = subprocess.Popen(
         cmd, cwd=str(GPRMAX_ROOT), stdout=subprocess.PIPE,

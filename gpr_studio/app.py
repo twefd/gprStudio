@@ -636,19 +636,56 @@ def section_run() -> None:
     st.caption(f"Ready to simulate **{scene.title}** — "
                f"{survey.num_traces} traces, {survey.dx_m*1000:.2f} mm cells.")
 
-    # Performance: split B-scan traces across worker processes (task farm).
+    # --- Compute backend: CPU (OpenMP task farm) or GPU (CUDA) ---
+    gpu = _gpu_status_cached()
+    use_gpu = False
+    gpu_device = 0
+    gc1, gc2 = st.columns([4, 1], vertical_alignment="bottom")
+    with gc1:
+        if gpu["cards"]:
+            st.caption("🖥️ GPU: " + " · ".join(
+                f"[{i}] {name} ({mem} MiB)" for i, name, mem in gpu["cards"]))
+        else:
+            st.caption("🖥️ No CUDA GPU detected — running on CPU.")
+    with gc2:
+        if st.button("↻ Re-check", width="stretch",
+                     help="Re-detect CUDA availability (after installing "
+                          "pycuda / CUDA Toolkit)"):
+            _gpu_status_cached.clear()
+            st.rerun()
+
+    if gpu["ready"]:
+        use_gpu = st.toggle(
+            "⚡ Run on GPU (CUDA)", key="use_gpu",
+            help="Run the gprMax FDTD solver on the NVIDIA GPU instead of the "
+                 "CPU. Big speed-up on larger grids; identical results.")
+        if use_gpu and len(gpu["cards"]) > 1:
+            names = {i: n for i, n, _ in gpu["cards"]}
+            gpu_device = st.selectbox(
+                "GPU device", [c[0] for c in gpu["cards"]],
+                format_func=lambda i: f"{i}: {names[i]}", key="gpu_device")
+    elif gpu["cards"]:
+        st.info(gpu["message"] + "  \nSee **README → GPU acceleration** to set "
+                "it up, then click **Re-check**.")
+
+    # CPU task-farm workers only apply when not running on the GPU.
     cores = os.cpu_count() or 4
-    default_workers = runner.auto_workers(survey.num_traces)
-    workers = st.slider(
-        "⚡ Parallel workers (B-scan)", 1, cores, default_workers,
-        key="bscan_workers",
-        help="Split the B-scan traces across this many gprMax processes. "
-             "~8 is the sweet spot (beyond that these small models saturate "
-             "memory bandwidth). Results are identical to a sequential run. "
-             "Set to 1 to keep the machine responsive.")
-    threads_per = max(1, cores // workers)
-    st.caption(f"{workers} worker(s) × {threads_per} thread(s) — uses "
-               f"`--geometry-fixed` (geometry built once, only the antenna moves).")
+    if use_gpu:
+        workers, threads_per = 1, 1
+        st.caption(f"Running on GPU device **{gpu_device}** — the CPU parallel "
+                   "workers don't apply.")
+    else:
+        default_workers = runner.auto_workers(survey.num_traces)
+        workers = st.slider(
+            "⚡ Parallel workers (B-scan)", 1, cores, default_workers,
+            key="bscan_workers",
+            help="Split the B-scan traces across this many gprMax processes. "
+                 "~8 is the sweet spot (beyond that these small models saturate "
+                 "memory bandwidth). Results are identical to a sequential run. "
+                 "Set to 1 to keep the machine responsive.")
+        threads_per = max(1, cores // workers)
+        st.caption(f"{workers} worker(s) × {threads_per} thread(s) — uses "
+                   f"`--geometry-fixed` (geometry built once, only the antenna moves).")
 
     c1, c2, c3 = st.columns(3)
     do_geom = c1.button("Validate geometry", width="stretch",
@@ -682,20 +719,30 @@ def section_run() -> None:
 
     if do_bscan:
         n = survey.num_traces
+        if use_gpu:
+            # One process on the GPU sweeps all traces (the CPU task farm is
+            # CPU-only). gprMax still writes per-trace .out files, so the merge
+            # below is unchanged.
+            with st.spinner(f"Running B-scan on GPU device {gpu_device}…"):
+                rc = runner.run_gprmax(in_path, n_traces=n, gpu=gpu_device,
+                                       on_line=on_line)
+        else:
+            def on_prog(done: int, tot: int) -> None:
+                progress.progress(done / max(tot, 1),
+                                  text=f"Simulating trace {done}/{tot} · "
+                                       f"{workers}×{threads_per} threads")
 
-        def on_prog(done: int, tot: int) -> None:
-            progress.progress(done / max(tot, 1),
-                              text=f"Simulating trace {done}/{tot} · "
-                                   f"{workers}×{threads_per} threads")
-
-        with st.spinner(f"Running B-scan on {workers} worker(s)…"):
-            rc, plog = runner.run_bscan_parallel(in_path, n, workers,
-                                                 on_progress=on_prog)
-        log_lines = plog.splitlines()
+            with st.spinner(f"Running B-scan on {workers} worker(s)…"):
+                rc, plog = runner.run_bscan_parallel(in_path, n, workers,
+                                                     on_progress=on_prog)
+            log_lines = plog.splitlines()
     else:
-        with st.spinner("Running gprMax…"):
+        # A-scan honours the GPU toggle; geometry-only never needs the solver.
+        gpu_arg = gpu_device if (use_gpu and do_ascan) else None
+        where = f" on GPU device {gpu_device}" if gpu_arg is not None else ""
+        with st.spinner(f"Running gprMax{where}…"):
             rc = runner.run_gprmax(in_path, geometry_only=do_geom,
-                                   on_line=on_line)
+                                   on_line=on_line, gpu=gpu_arg)
     progress.empty()
     log_box.code("\n".join(log_lines[-80:]) or "(no output)", language="text")
 
@@ -732,6 +779,12 @@ def section_run() -> None:
                        "trace_step_m": survey.trace_step_eff_m,
                        "velocity_m_s": vel}
     _show_last_result()
+
+
+@st.cache_data(ttl=30, show_spinner="Checking GPU…")
+def _gpu_status_cached() -> dict:
+    """Cache GPU detection briefly (the probes shell out); a button clears it."""
+    return runner.gpu_status()
 
 
 @st.cache_data(show_spinner=False)
