@@ -668,12 +668,25 @@ def section_run() -> None:
         st.info(gpu["message"] + "  \nSee **README → GPU acceleration** to set "
                 "it up, then click **Re-check**.")
 
-    # CPU task-farm workers only apply when not running on the GPU.
+    # Worker count. On GPU a few concurrent processes overlap per-trace CPU
+    # setup and multiplex the card (one process leaves it ~30% busy); on CPU
+    # the task farm splits traces across cores.
     cores = os.cpu_count() or 4
     if use_gpu:
-        workers, threads_per = 1, 1
-        st.caption(f"Running on GPU device **{gpu_device}** — the CPU parallel "
-                   "workers don't apply.")
+        gpu_mem = next((int(m) for i, _, m in gpu["cards"]
+                        if i == gpu_device and str(m).isdigit()), None)
+        gpu_cap = runner.gpu_worker_cap(gpu_mem)
+        default_gpu = runner.auto_gpu_workers(survey.num_traces, gpu_mem)
+        workers = st.slider(
+            "⚡ GPU workers (B-scan)", 1, max(gpu_cap, 1), default_gpu,
+            key="gpu_workers",
+            help="Concurrent gprMax processes sharing the GPU. ~3 is the sweet "
+                 "spot on small 2D models — one process alone underuses the card. "
+                 "Capped by GPU memory (~1.3 GiB per worker). Identical results.")
+        threads_per = max(1, cores // max(workers, 1))
+        st.caption(f"{workers} GPU worker(s) on device **{gpu_device}** — each "
+                   "uses `--geometry-fixed` (geometry built once, only the "
+                   "antenna moves).")
     else:
         default_workers = runner.auto_workers(survey.num_traces)
         workers = st.slider(
@@ -719,23 +732,20 @@ def section_run() -> None:
 
     if do_bscan:
         n = survey.num_traces
-        if use_gpu:
-            # One process on the GPU sweeps all traces (the CPU task farm is
-            # CPU-only). gprMax still writes per-trace .out files, so the merge
-            # below is unchanged.
-            with st.spinner(f"Running B-scan on GPU device {gpu_device}…"):
-                rc = runner.run_gprmax(in_path, n_traces=n, gpu=gpu_device,
-                                       on_line=on_line)
-        else:
-            def on_prog(done: int, tot: int) -> None:
-                progress.progress(done / max(tot, 1),
-                                  text=f"Simulating trace {done}/{tot} · "
-                                       f"{workers}×{threads_per} threads")
+        gpu_arg = gpu_device if use_gpu else None
+        unit = "GPU worker" if use_gpu else "worker"
 
-            with st.spinner(f"Running B-scan on {workers} worker(s)…"):
-                rc, plog = runner.run_bscan_parallel(in_path, n, workers,
-                                                     on_progress=on_prog)
-            log_lines = plog.splitlines()
+        def on_prog(done: int, tot: int) -> None:
+            where = (f"GPU {gpu_device} · {workers} workers" if use_gpu
+                     else f"{workers}×{threads_per} threads")
+            progress.progress(done / max(tot, 1),
+                              text=f"Simulating trace {done}/{tot} · {where}")
+
+        with st.spinner(f"Running B-scan on {workers} {unit}(s)…"):
+            rc, plog = runner.run_bscan_parallel(in_path, n, workers,
+                                                 on_progress=on_prog,
+                                                 gpu=gpu_arg)
+        log_lines = plog.splitlines()
     else:
         # A-scan honours the GPU toggle; geometry-only never needs the solver.
         gpu_arg = gpu_device if (use_gpu and do_ascan) else None

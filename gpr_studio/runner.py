@@ -155,6 +155,21 @@ def auto_workers(n_traces: int, cap: int = 8) -> int:
     return max(1, min(cap, cores, max(1, n_traces)))
 
 
+def gpu_worker_cap(mem_mib: int | None = None) -> int:
+    """Max concurrent GPU worker processes, limited by GPU memory (~1.3 GiB ea)."""
+    if not mem_mib:
+        return 4
+    return max(1, min(6, mem_mib // 1300))
+
+
+def auto_gpu_workers(n_traces: int, mem_mib: int | None = None) -> int:
+    """Default GPU worker count. One process leaves the GPU ~30% busy, so a few
+    concurrent workers (each with ``--geometry-fixed``) overlap the per-trace CPU
+    setup and multiplex the GPU. ~3 is the knee of the curve on small 2D models.
+    """
+    return max(1, min(3, gpu_worker_cap(mem_mib), max(1, n_traces)))
+
+
 def _count_traces(base: Path, n_traces: int) -> int:
     files = [f for f in glob.glob(str(base) + "[0-9]*.out") if "_merged" not in f]
     return min(len(files), n_traces)
@@ -162,7 +177,8 @@ def _count_traces(base: Path, n_traces: int) -> int:
 
 def run_bscan_parallel(in_path: Path, n_traces: int, workers: int,
                        on_progress: Callable[[int, int], None] | None = None,
-                       poll: float = 0.4) -> tuple[int, str]:
+                       poll: float = 0.4,
+                       gpu: int | None = None) -> tuple[int, str]:
     """Run a B-scan as a task farm: split traces across ``workers`` processes.
 
     Each worker runs a contiguous chunk with ``-restart`` + ``--geometry-fixed``
@@ -170,6 +186,10 @@ def run_bscan_parallel(in_path: Path, n_traces: int, workers: int,
     via ``OMP_NUM_THREADS = cores / workers``. Produces the same per-trace
     ``.out`` files as a sequential ``-n`` run, so the usual merge works
     unchanged. Returns (returncode, combined_log_tail).
+
+    When ``gpu`` is set, each worker also gets ``-gpu <id>`` so the FDTD solve
+    runs on that CUDA device. A single GPU process leaves the card underused, so
+    a few workers overlap the per-trace CPU setup and multiplex the GPU.
     """
     base = in_path.with_suffix("")
     # Clear any stale trace files so progress + merge are clean.
@@ -198,6 +218,8 @@ def run_bscan_parallel(in_path: Path, n_traces: int, workers: int,
         logpaths.append(logpath)
         cmd = [env_python(), "-m", "gprMax", str(in_path), "-n", str(count),
                "-restart", str(start), "--geometry-fixed"]
+        if gpu is not None:
+            cmd += ["-gpu", str(gpu)]
         procs.append(subprocess.Popen(cmd, cwd=str(GPRMAX_ROOT), env=env,
                                       stdout=logf, stderr=subprocess.STDOUT))
 
