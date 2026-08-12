@@ -44,6 +44,15 @@ def _has_inplace_gprmax() -> bool:
                for suf in importlib.machinery.EXTENSION_SUFFIXES)
 
 
+def _ensure_gprmax_on_path() -> None:
+    """Add the vendored gprMax to sys.path only when it's the built-in-place
+    local copy. On a pip-installed deploy the compiled ``gprMax`` and ``tools``
+    live in site-packages, and putting the uncompiled vendored source on the
+    path would shadow them (importing ``tools`` pulls in ``gprMax``)."""
+    if _has_inplace_gprmax() and str(GPRMAX_ROOT) not in sys.path:
+        sys.path.insert(0, str(GPRMAX_ROOT))
+
+
 # Working directory for the ``python -m gprMax`` subprocess. Run from the
 # vendored tree when its extensions are built there (local dev); otherwise run
 # from the repo root — which contains no ``gprMax`` package — so the pip-installed
@@ -275,7 +284,7 @@ def run_bscan_parallel(in_path: Path, n_traces: int, workers: int,
 # --------------------------------------------------------------------------- #
 def _get_output_data(out_path: Path, rx: int, component: str):
     """Load a single receiver component from an .out file (reuses tools)."""
-    sys.path.insert(0, str(GPRMAX_ROOT))
+    _ensure_gprmax_on_path()
     from tools.outputfiles_merge import get_output_data
     return get_output_data(str(out_path), rx, component)
 
@@ -305,7 +314,7 @@ def make_bscan(base: Path, component: str = "Ez",
     files are x1.out, x2.out, ...).  Returns (merged_out_path, png_path).
     After merging, per-trace files are removed (kept: merged .out + PNG).
     """
-    sys.path.insert(0, str(GPRMAX_ROOT))
+    _ensure_gprmax_on_path()
     from tools.outputfiles_merge import merge_files
 
     base_str = str(base)
