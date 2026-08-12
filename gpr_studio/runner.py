@@ -45,11 +45,11 @@ def _has_inplace_gprmax() -> bool:
 
 
 # Working directory for the ``python -m gprMax`` subprocess. Run from the
-# vendored tree when its extensions are built there (local dev); otherwise from
-# the default cwd so a pip-installed gprMax — e.g. on Streamlit Community Cloud,
-# where `pip install ./vendor/gprMax` compiles it into site-packages — is used
-# instead of being shadowed by the uncompiled vendored source.
-GPRMAX_CWD = str(GPRMAX_ROOT) if _has_inplace_gprmax() else None
+# vendored tree when its extensions are built there (local dev); otherwise run
+# from the repo root — which contains no ``gprMax`` package — so the pip-installed
+# gprMax (compiled into site-packages, e.g. on Streamlit Community Cloud) is used
+# and the uncompiled vendored source can never shadow it.
+GPRMAX_CWD = str(GPRMAX_ROOT) if _has_inplace_gprmax() else str(REPO_ROOT)
 PROJECTS_DIR = Path(__file__).resolve().parent / "projects"
 
 
