@@ -13,26 +13,13 @@ import os
 import sys
 from pathlib import Path
 
-# Make the repo importable so ``gpr_studio`` resolves. Add the vendored gprMax
-# to the path ONLY when its extensions are built in place (local dev) — then it
-# provides ``gprMax`` / ``tools``. On a pip-installed deploy (e.g. Streamlit
-# Cloud) those live, compiled, in site-packages, and the uncompiled vendored
-# source must NOT be on the path or it would shadow them.
+# Only the repo root needs importing (for the ``gpr_studio`` package). gprMax is
+# never imported in this process — it runs as a subprocess and post-processing is
+# self-contained — so the vendored tree is deliberately kept OFF sys.path, which
+# guarantees it can't shadow a pip-installed gprMax on a cloud deploy.
 REPO_ROOT = Path(__file__).resolve().parent.parent
-GPRMAX_ROOT = REPO_ROOT / "vendor" / "gprMax"
-
-
-def _vendored_gprmax_built() -> bool:
-    import importlib.machinery
-    d = GPRMAX_ROOT / "gprMax"
-    return any(list(d.glob("fields_updates_ext*" + suf))
-               for suf in importlib.machinery.EXTENSION_SUFFIXES)
-
-
-_paths = [REPO_ROOT, GPRMAX_ROOT] if _vendored_gprmax_built() else [REPO_ROOT]
-for _p in _paths:
-    if str(_p) not in sys.path:
-        sys.path.insert(0, str(_p))
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 import pandas as pd
 import streamlit as st
