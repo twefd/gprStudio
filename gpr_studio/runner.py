@@ -163,11 +163,14 @@ def gpu_worker_cap(mem_mib: int | None = None) -> int:
 
 
 def auto_gpu_workers(n_traces: int, mem_mib: int | None = None) -> int:
-    """Default GPU worker count. One process leaves the GPU ~30% busy, so a few
+    """Default GPU worker count. One process leaves the GPU underused, so a few
     concurrent workers (each with ``--geometry-fixed``) overlap the per-trace CPU
-    setup and multiplex the GPU. ~3 is the knee of the curve on small 2D models.
+    setup and multiplex the GPU. 5 is a good all-round default: it's the sweet
+    spot on small 2D models and, on large/fine grids where the GPU is
+    compute-saturated, extra workers simply idle without hurting. Still capped by
+    GPU memory.
     """
-    return max(1, min(3, gpu_worker_cap(mem_mib), max(1, n_traces)))
+    return max(1, min(5, gpu_worker_cap(mem_mib), max(1, n_traces)))
 
 
 def _count_traces(base: Path, n_traces: int) -> int:

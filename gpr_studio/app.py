@@ -680,9 +680,11 @@ def section_run() -> None:
         workers = st.slider(
             "⚡ GPU workers (B-scan)", 1, max(gpu_cap, 1), default_gpu,
             key="gpu_workers",
-            help="Concurrent gprMax processes sharing the GPU. ~3 is the sweet "
-                 "spot on small 2D models — one process alone underuses the card. "
-                 "Capped by GPU memory (~1.3 GiB per worker). Identical results.")
+            help="Concurrent gprMax processes sharing the GPU (default 5). One "
+                 "process alone underuses the card; ~5 is the sweet spot on small "
+                 "2D models, and on large/fine grids the GPU is already saturated "
+                 "so fewer would do. Capped by GPU memory (~1.3 GiB/worker). "
+                 "Identical results.")
         threads_per = max(1, cores // max(workers, 1))
         st.caption(f"{workers} GPU worker(s) on device **{gpu_device}** — each "
                    "uses `--geometry-fixed` (geometry built once, only the "
