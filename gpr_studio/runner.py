@@ -15,6 +15,7 @@ import os
 import subprocess
 import sys
 import glob
+import re
 import shutil
 import time
 from pathlib import Path
@@ -42,15 +43,6 @@ def _has_inplace_gprmax() -> bool:
     d = GPRMAX_ROOT / "gprMax"
     return any(list(d.glob("fields_updates_ext*" + suf))
                for suf in importlib.machinery.EXTENSION_SUFFIXES)
-
-
-def _ensure_gprmax_on_path() -> None:
-    """Add the vendored gprMax to sys.path only when it's the built-in-place
-    local copy. On a pip-installed deploy the compiled ``gprMax`` and ``tools``
-    live in site-packages, and putting the uncompiled vendored source on the
-    path would shadow them (importing ``tools`` pulls in ``gprMax``)."""
-    if _has_inplace_gprmax() and str(GPRMAX_ROOT) not in sys.path:
-        sys.path.insert(0, str(GPRMAX_ROOT))
 
 
 # Working directory for the ``python -m gprMax`` subprocess. Run from the
@@ -283,10 +275,59 @@ def run_bscan_parallel(in_path: Path, n_traces: int, workers: int,
 # Post-processing
 # --------------------------------------------------------------------------- #
 def _get_output_data(out_path: Path, rx: int, component: str):
-    """Load a single receiver component from an .out file (reuses tools)."""
-    _ensure_gprmax_on_path()
-    from tools.outputfiles_merge import get_output_data
-    return get_output_data(str(out_path), rx, component)
+    """Load a single receiver component (+ dt) from a gprMax .out HDF5 file.
+
+    Self-contained h5py read — a reimplementation of gprMax's
+    ``tools.outputfiles_merge.get_output_data`` — so post-processing never
+    imports the gprMax package. On a pip-installed deploy (e.g. Streamlit Cloud)
+    that import could resolve to the uncompiled vendored source and fail.
+    """
+    import h5py
+    with h5py.File(str(out_path), "r") as f:
+        dt = float(f.attrs["dt"])
+        grp = f.get(f"/rxs/rx{rx}")
+        if grp is None:
+            raise KeyError(f"No receiver rx{rx} in {out_path}")
+        if component not in grp:
+            avail = ", ".join(grp.keys())
+            raise KeyError(f"{component!r} not in {out_path} (available: {avail})")
+        return np.array(grp[component]), dt
+
+
+def _merge_out_files(base: str) -> Path:
+    """Merge per-trace .out files (base<k>.out) into base_merged.out.
+
+    Self-contained reimplementation of gprMax's
+    ``tools.outputfiles_merge.merge_files``: each receiver output is stacked
+    across traces (column = trace order) into one HDF5 B-scan, no gprMax import.
+    """
+    import h5py
+    outputfile = base + "_merged.out"
+    files = [fn for fn in glob.glob(base + "[0-9]*.out") if "_merged" not in fn]
+    files.sort(key=lambda fn: int(re.search(r"(\d+)\.out$", fn).group(1)))
+    n = len(files)
+    with h5py.File(outputfile, "w") as fout:
+        for col, fn in enumerate(files):
+            with h5py.File(fn, "r") as fin:
+                nrx = int(fin.attrs["nrx"])
+                if col == 0:
+                    iters = int(fin.attrs["Iterations"])
+                    fout.attrs["Title"] = fin.attrs.get("Title", "")
+                    fout.attrs["gprMax"] = "gprStudio"
+                    fout.attrs["Iterations"] = fin.attrs["Iterations"]
+                    fout.attrs["dt"] = fin.attrs["dt"]
+                    fout.attrs["nrx"] = nrx
+                    for rx in range(1, nrx + 1):
+                        grp = fout.create_group(f"/rxs/rx{rx}")
+                        for out in fin[f"/rxs/rx{rx}"].keys():
+                            grp.create_dataset(
+                                out, (iters, n),
+                                dtype=fin[f"/rxs/rx{rx}/{out}"].dtype)
+                for rx in range(1, nrx + 1):
+                    for out in fin[f"/rxs/rx{rx}"].keys():
+                        fout[f"/rxs/rx{rx}/{out}"][:, col] = \
+                            fin[f"/rxs/rx{rx}/{out}"][:]
+    return Path(outputfile)
 
 
 def plot_ascan(out_path: Path, component: str = "Ez") -> Path:
@@ -314,12 +355,8 @@ def make_bscan(base: Path, component: str = "Ez",
     files are x1.out, x2.out, ...).  Returns (merged_out_path, png_path).
     After merging, per-trace files are removed (kept: merged .out + PNG).
     """
-    _ensure_gprmax_on_path()
-    from tools.outputfiles_merge import merge_files
-
     base_str = str(base)
-    merge_files(base_str, removefiles=False)
-    merged = Path(base_str + "_merged.out")
+    merged = _merge_out_files(base_str)
 
     # Render with the standard gray scheme (matches the in-app viewer default).
     png = render_bscan(merged, component, cmap="gray",
