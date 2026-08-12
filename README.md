@@ -103,13 +103,17 @@ python -m gpr_studio.verify_studio --bscan    # + a short B-scan run
 
 ## Updating the vendored gprMax
 
-`vendor/gprMax/` is a plain copy of upstream gprMax. To update it, drop in a
-newer gprMax source tree (or re-copy from a clone), rebuild the extensions, and
-commit. Nothing in `gpr_studio/` needs to change as long as gprMax's public
+`vendor/gprMax/` is a near-verbatim copy of upstream gprMax with two
+packaging-only tweaks so it installs cleanly from source (needed for the
+Streamlit Cloud deploy): a `pyproject.toml` declaring the build requirements,
+and a one-line change in `setup.py` so the package list skips the 95 MB `tests`
+suite (which isn't shipped). No solver code is changed. To update it, drop in a
+newer gprMax source tree (re-applying those two tweaks), rebuild the extensions,
+and commit. Nothing in `gpr_studio/` needs to change as long as gprMax's public
 interface (`python -m gprMax`, the `tools` package) is unchanged.
 
 ## Licensing
 
-gprMax is distributed under the GNU GPL v3+ (see `vendor/gprMax/LICENSE`). The
-vendored copy here is unmodified; that license governs the `vendor/gprMax/`
-subtree.
+gprMax is distributed under the GNU GPL v3+ (see `vendor/gprMax/LICENSE`), which
+governs the `vendor/gprMax/` subtree. The vendored copy is unmodified apart from
+the two packaging tweaks noted above.

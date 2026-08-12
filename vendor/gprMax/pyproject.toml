@@ -1,0 +1,11 @@
+# Minimal PEP 517 build configuration for the vendored gprMax.
+#
+# gprMax keeps all of its packaging config in setup.py (which Cythonizes and
+# compiles the .pyx extensions). This file only declares the build-time
+# requirements so that `pip install ./vendor/gprMax` works in an isolated build
+# environment — notably on Streamlit Community Cloud, where the extensions must
+# be compiled from source with gcc/OpenMP at deploy time. setup.py imports numpy
+# and Cython at build time, so both must be present in the build env.
+[build-system]
+requires = ["setuptools>=64", "wheel", "Cython>=3.0.11", "numpy>=1.26"]
+build-backend = "setuptools.build_meta"

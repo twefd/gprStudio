@@ -47,7 +47,10 @@ with open("gprMax/__init__.py", "r") as fd:
         r'^__name__\s*=\s*[\'"]([^\'"]*)[\'"]', fd.read(), re.MULTILINE
     ).group(1)
 
-packages = [packagename, "tests", "tools", "user_libs"]
+# Vendored for gprStudio: the 95 MB `tests` suite is not shipped, so keep only
+# the sub-packages that are actually present in this copy.
+packages = [p for p in [packagename, "tests", "tools", "user_libs"]
+            if os.path.isdir(p)]
 
 # Parse long_description from README.rst file.
 with open("README.rst", "r", encoding="utf-8") as fd:

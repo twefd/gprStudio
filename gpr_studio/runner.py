@@ -26,10 +26,30 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Repo root = parent of the gpr_studio package. The gprMax solver is vendored
-# under vendor/gprMax, so GPRMAX_ROOT is where ``gprMax`` / ``tools`` import from
-# and the working directory the ``python -m gprMax`` subprocess runs in.
+# under vendor/gprMax, so GPRMAX_ROOT is where ``gprMax`` / ``tools`` import from.
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GPRMAX_ROOT = REPO_ROOT / "vendor" / "gprMax"
+
+
+def _has_inplace_gprmax() -> bool:
+    """True if gprMax's extension is built inside the vendored tree *for this
+    platform*. The committed ``.pyd`` are Windows-only, so on Linux (e.g.
+    Streamlit Cloud) only a freshly built ``.so`` counts — otherwise those stale
+    Windows binaries would wrongly select the vendored tree and shadow the
+    pip-installed, correctly-compiled gprMax.
+    """
+    import importlib.machinery
+    d = GPRMAX_ROOT / "gprMax"
+    return any(list(d.glob("fields_updates_ext*" + suf))
+               for suf in importlib.machinery.EXTENSION_SUFFIXES)
+
+
+# Working directory for the ``python -m gprMax`` subprocess. Run from the
+# vendored tree when its extensions are built there (local dev); otherwise from
+# the default cwd so a pip-installed gprMax — e.g. on Streamlit Community Cloud,
+# where `pip install ./vendor/gprMax` compiles it into site-packages — is used
+# instead of being shadowed by the uncompiled vendored source.
+GPRMAX_CWD = str(GPRMAX_ROOT) if _has_inplace_gprmax() else None
 PROJECTS_DIR = Path(__file__).resolve().parent / "projects"
 
 
@@ -131,7 +151,7 @@ def run_gprmax(in_path: Path, n_traces: int | None = None,
         cmd += ["-gpu", str(gpu)]
 
     proc = subprocess.Popen(
-        cmd, cwd=str(GPRMAX_ROOT), stdout=subprocess.PIPE,
+        cmd, cwd=GPRMAX_CWD, stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, text=True, bufsize=1,
     )
     assert proc.stdout is not None
@@ -223,7 +243,7 @@ def run_bscan_parallel(in_path: Path, n_traces: int, workers: int,
                "-restart", str(start), "--geometry-fixed"]
         if gpu is not None:
             cmd += ["-gpu", str(gpu)]
-        procs.append(subprocess.Popen(cmd, cwd=str(GPRMAX_ROOT), env=env,
+        procs.append(subprocess.Popen(cmd, cwd=GPRMAX_CWD, env=env,
                                       stdout=logf, stderr=subprocess.STDOUT))
 
     while any(p.poll() is None for p in procs):
@@ -393,7 +413,7 @@ def open_bscan_viewer(merged: Path, component: str = "Ez") -> "subprocess.Popen"
     env = os.environ.copy()
     env["MPLBACKEND"] = "TkAgg"
     cmd = [env_python(), "-m", "tools.plot_Bscan", str(merged), component]
-    kwargs: dict = {"cwd": str(GPRMAX_ROOT), "env": env}
+    kwargs: dict = {"cwd": GPRMAX_CWD, "env": env}
     if os.name == "nt":
         kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
     return subprocess.Popen(cmd, **kwargs)
