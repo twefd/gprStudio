@@ -16,7 +16,6 @@ import subprocess
 import sys
 import glob
 import re
-import shutil
 import time
 from pathlib import Path
 from typing import Callable, Iterator
@@ -86,79 +85,18 @@ def write_infile(text: str, name: str) -> Path:
     return in_path
 
 
-# --------------------------------------------------------------------------- #
-# GPU (CUDA) acceleration
-# --------------------------------------------------------------------------- #
-def gpu_status() -> dict:
-    """Report whether gprMax's CUDA GPU solver can be used here.
-
-    gprMax accelerates the FDTD loops on an NVIDIA GPU via ``pycuda``, which
-    JIT-compiles the CUDA kernels with ``nvcc`` at run time. So a usable setup
-    needs three things: a CUDA GPU (seen via ``nvidia-smi``), the ``pycuda``
-    module in the solver's Python env, and ``nvcc`` (the CUDA Toolkit) on PATH.
-
-    Returns a dict: ``cards`` [(id, name, mem_MiB)], ``pycuda`` bool, ``nvcc``
-    bool, ``ready`` bool, and a human ``message``.
-    """
-    cards: list[tuple[int, str, str]] = []
-    smi = shutil.which("nvidia-smi")
-    if smi:
-        try:
-            out = subprocess.run(
-                [smi, "--query-gpu=index,name,memory.total",
-                 "--format=csv,noheader,nounits"],
-                capture_output=True, text=True, timeout=8)
-            for line in out.stdout.strip().splitlines():
-                parts = [p.strip() for p in line.split(",")]
-                if len(parts) >= 2 and parts[0].isdigit():
-                    cards.append((int(parts[0]), parts[1],
-                                  parts[2] if len(parts) > 2 else "?"))
-        except Exception:  # noqa: BLE001 - detection must never raise
-            pass
-
-    have_pycuda = False
-    try:
-        r = subprocess.run(
-            [env_python(), "-c", "import pycuda.driver as d; d.init(); print('ok')"],
-            capture_output=True, text=True, timeout=25, cwd=str(GPRMAX_ROOT))
-        have_pycuda = r.returncode == 0 and "ok" in r.stdout
-    except Exception:  # noqa: BLE001
-        pass
-
-    have_nvcc = shutil.which("nvcc") is not None
-    ready = bool(cards) and have_pycuda and have_nvcc
-
-    if ready:
-        msg = "GPU ready."
-    elif not cards:
-        msg = "No NVIDIA GPU detected (nvidia-smi not available)."
-    else:
-        missing = []
-        if not have_pycuda:
-            missing.append("`pycuda` (pip install pycuda)")
-        if not have_nvcc:
-            missing.append("CUDA Toolkit / `nvcc` on PATH")
-        msg = "GPU found but not usable yet — missing: " + ", ".join(missing)
-    return {"cards": cards, "pycuda": have_pycuda, "nvcc": have_nvcc,
-            "ready": ready, "message": msg}
-
-
 def run_gprmax(in_path: Path, n_traces: int | None = None,
                geometry_only: bool = False,
-               on_line: Callable[[str], None] | None = None,
-               gpu: int | None = None) -> int:
+               on_line: Callable[[str], None] | None = None) -> int:
     """Run gprMax on ``in_path``.  Streams output lines to ``on_line``.
 
-    ``gpu`` selects the CUDA device id to run the FDTD solver on (``None`` =
-    CPU/OpenMP). Returns the process exit code.
+    Returns the process exit code.
     """
     cmd = [env_python(), "-m", "gprMax", str(in_path)]
     if n_traces and n_traces > 1:
         cmd += ["-n", str(n_traces)]
     if geometry_only:
         cmd += ["--geometry-only"]
-    if gpu is not None:
-        cmd += ["-gpu", str(gpu)]
 
     proc = subprocess.Popen(
         cmd, cwd=GPRMAX_CWD, stdout=subprocess.PIPE,
@@ -189,24 +127,6 @@ def auto_workers(n_traces: int, cap: int = 8) -> int:
     return max(1, min(cap, cores, max(1, n_traces)))
 
 
-def gpu_worker_cap(mem_mib: int | None = None) -> int:
-    """Max concurrent GPU worker processes, limited by GPU memory (~1.3 GiB ea)."""
-    if not mem_mib:
-        return 4
-    return max(1, min(6, mem_mib // 1300))
-
-
-def auto_gpu_workers(n_traces: int, mem_mib: int | None = None) -> int:
-    """Default GPU worker count. One process leaves the GPU underused, so a few
-    concurrent workers (each with ``--geometry-fixed``) overlap the per-trace CPU
-    setup and multiplex the GPU. 5 is a good all-round default: it's the sweet
-    spot on small 2D models and, on large/fine grids where the GPU is
-    compute-saturated, extra workers simply idle without hurting. Still capped by
-    GPU memory.
-    """
-    return max(1, min(5, gpu_worker_cap(mem_mib), max(1, n_traces)))
-
-
 def _count_traces(base: Path, n_traces: int) -> int:
     files = [f for f in glob.glob(str(base) + "[0-9]*.out") if "_merged" not in f]
     return min(len(files), n_traces)
@@ -214,8 +134,7 @@ def _count_traces(base: Path, n_traces: int) -> int:
 
 def run_bscan_parallel(in_path: Path, n_traces: int, workers: int,
                        on_progress: Callable[[int, int], None] | None = None,
-                       poll: float = 0.4,
-                       gpu: int | None = None) -> tuple[int, str]:
+                       poll: float = 0.4) -> tuple[int, str]:
     """Run a B-scan as a task farm: split traces across ``workers`` processes.
 
     Each worker runs a contiguous chunk with ``-restart`` + ``--geometry-fixed``
@@ -223,10 +142,6 @@ def run_bscan_parallel(in_path: Path, n_traces: int, workers: int,
     via ``OMP_NUM_THREADS = cores / workers``. Produces the same per-trace
     ``.out`` files as a sequential ``-n`` run, so the usual merge works
     unchanged. Returns (returncode, combined_log_tail).
-
-    When ``gpu`` is set, each worker also gets ``-gpu <id>`` so the FDTD solve
-    runs on that CUDA device. A single GPU process leaves the card underused, so
-    a few workers overlap the per-trace CPU setup and multiplex the GPU.
     """
     base = in_path.with_suffix("")
     # Clear any stale trace files so progress + merge are clean.
@@ -255,8 +170,6 @@ def run_bscan_parallel(in_path: Path, n_traces: int, workers: int,
         logpaths.append(logpath)
         cmd = [env_python(), "-m", "gprMax", str(in_path), "-n", str(count),
                "-restart", str(start), "--geometry-fixed"]
-        if gpu is not None:
-            cmd += ["-gpu", str(gpu)]
         procs.append(subprocess.Popen(cmd, cwd=GPRMAX_CWD, env=env,
                                       stdout=logf, stderr=subprocess.STDOUT))
 

@@ -36,11 +36,12 @@ Community Cloud is a small, **CPU-only, shared Linux container** (~1 vCPU,
 
 - ✅ Full UI: equipment/survey, materials, geometry builder + preview,
   A-scans and B-scans, the in-app B-scan image viewer, save/import scenes.
-- ⚠️ **CPU only — no GPU.** The "Run on GPU" toggle won't appear; runs use the
+- ⚠️ **CPU only.** This branch is a CPU-only build (no GPU code); runs use the
   CPU task farm on ~1 core. **Keep models small** (coarse cell size, modest
   scan length / trace count). Fine grids will be slow and can hit the memory
-  limit. This host is for light models and sharing/demoing, not the heavy
-  fine-grid work — for that, run locally on the GPU box (see main README).
+  limit. This host is for light models and sharing/demoing, not heavy fine-grid
+  work — for that, run the GPU-enabled local build (the `dev` branch) on a
+  machine with an NVIDIA GPU.
 - ⚠️ **Ephemeral storage:** files under `gpr_studio/projects/` reset whenever
   the app sleeps/restarts. Download B-scan images / data you want to keep.
 - ⚠️ The **"Open in interactive gprMax viewer"** button needs a desktop and
