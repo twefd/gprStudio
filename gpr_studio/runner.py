@@ -59,6 +59,15 @@ def env_python() -> str:
     return sys.executable
 
 
+def _terminate(proc: "subprocess.Popen") -> None:
+    """Best-effort kill of a solver subprocess (used when a run is interrupted)."""
+    try:
+        if proc.poll() is None:
+            proc.terminate()
+    except Exception:  # noqa: BLE001 - never fatal
+        pass
+
+
 def project_dir(name: str) -> Path:
     d = PROJECTS_DIR / _safe(name)
     d.mkdir(parents=True, exist_ok=True)
@@ -178,10 +187,14 @@ def run_gprmax(in_path: Path, n_traces: int | None = None,
         stderr=subprocess.STDOUT, text=True, bufsize=1,
     )
     assert proc.stdout is not None
-    for line in proc.stdout:
-        if on_line:
-            on_line(line.rstrip("\n"))
-    proc.wait()
+    try:
+        for line in proc.stdout:
+            if on_line:
+                on_line(line.rstrip("\n"))
+        proc.wait()
+    except BaseException:  # incl. Streamlit's RerunException on interrupt
+        _terminate(proc)   # never leave an orphaned solver running
+        raise
     return proc.returncode
 
 
@@ -269,15 +282,21 @@ def run_bscan_parallel(in_path: Path, n_traces: int, workers: int,
         procs.append(subprocess.Popen(cmd, cwd=GPRMAX_CWD, env=env,
                                       stdout=logf, stderr=subprocess.STDOUT))
 
-    while any(p.poll() is None for p in procs):
+    try:
+        while any(p.poll() is None for p in procs):
+            if on_progress:
+                on_progress(_count_traces(base, n_traces), n_traces)
+            time.sleep(poll)
+        rcs = [p.wait() for p in procs]
         if on_progress:
             on_progress(_count_traces(base, n_traces), n_traces)
-        time.sleep(poll)
-    rcs = [p.wait() for p in procs]
-    for logf in logs:
-        logf.close()
-    if on_progress:
-        on_progress(_count_traces(base, n_traces), n_traces)
+    except BaseException:  # incl. Streamlit's RerunException on interrupt
+        for p in procs:    # kill every worker so none is left running
+            _terminate(p)
+        raise
+    finally:
+        for logf in logs:
+            logf.close()
 
     # Collect log tails (useful if a worker failed).
     tails = []
