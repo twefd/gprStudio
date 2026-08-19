@@ -627,6 +627,20 @@ def section_geometry() -> None:
                 st.error(f"Preview / input-file error: {exc}")
 
 
+def _request_run(kind: str) -> None:
+    """Button callback: queue a run, unless one is already in progress.
+
+    Runs before the script body, so the buttons that render this cycle come out
+    disabled (``sim_running`` is already True) and a second click lands on a
+    disabled button — Streamlit ignores it, so no duplicate/concurrent run.
+    """
+    ss = st.session_state
+    if ss.get("sim_running"):
+        return
+    ss["sim_running"] = True
+    ss["_run_request"] = kind
+
+
 def section_run() -> None:
     ss = st.session_state
     st.subheader("4 · Run & results")
@@ -701,18 +715,27 @@ def section_run() -> None:
         st.caption(f"{workers} worker(s) × {threads_per} thread(s) — uses "
                    f"`--geometry-fixed` (geometry built once, only the antenna moves).")
 
+    running = ss.get("sim_running", False)
     c1, c2, c3 = st.columns(3)
-    do_geom = c1.button("Validate geometry", width="stretch",
-                        help="Fast --geometry-only build to check the model parses")
-    do_ascan = c2.button("Run single A-scan", width="stretch",
-                         help="One trace: quick sanity check")
-    do_bscan = c3.button("Run full B-scan", type="primary",
-                         width="stretch",
-                         help="Full survey; produces the B-scan image")
+    c1.button("Validate geometry", width="stretch", disabled=running,
+              on_click=_request_run, args=("geom",),
+              help="Fast --geometry-only build to check the model parses")
+    c2.button("Run single A-scan", width="stretch", disabled=running,
+              on_click=_request_run, args=("ascan",),
+              help="One trace: quick sanity check")
+    c3.button("Run full B-scan", type="primary", width="stretch",
+              disabled=running, on_click=_request_run, args=("bscan",),
+              help="Full survey; produces the B-scan image")
+    if running:
+        st.info("⏳ A simulation is running — the run buttons are disabled until "
+                "it finishes.")
 
-    if not (do_geom or do_ascan or do_bscan):
+    kind = ss.pop("_run_request", None)
+    if kind is None:
+        ss["sim_running"] = False   # idle — keep the buttons enabled
         _show_last_result()
         return
+    do_geom, do_ascan, do_bscan = kind == "geom", kind == "ascan", kind == "bscan"
 
     text = infile.generate(scene, survey, build_materials())
     in_path = runner.write_infile(text, ss.project_name)
@@ -754,6 +777,9 @@ def section_run() -> None:
         with st.spinner(f"Running gprMax{where}…"):
             rc = runner.run_gprmax(in_path, geometry_only=do_geom,
                                    on_line=on_line, gpu=gpu_arg)
+    # The run finished (an interrupted run raises before here and leaves the flag
+    # set — cleared on the next idle rerun — with its subprocesses terminated).
+    ss["sim_running"] = False
     progress.empty()
     log_box.code("\n".join(log_lines[-80:]) or "(no output)", language="text")
 
