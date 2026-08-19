@@ -677,13 +677,11 @@ def section_run() -> None:
     c3.button("Run full B-scan", type="primary", width="stretch",
               disabled=running, on_click=_request_run, args=("bscan",),
               help="Full survey; produces the B-scan image")
-    if running:
-        st.info("⏳ A simulation is running — the run buttons are disabled until "
-                "it finishes.")
 
     kind = ss.pop("_run_request", None)
     if kind is None:
         ss["sim_running"] = False   # idle — keep the buttons enabled
+        _show_run_outcome()
         _show_last_result()
         return
     do_geom, do_ascan, do_bscan = kind == "geom", kind == "ascan", kind == "bscan"
@@ -692,10 +690,8 @@ def section_run() -> None:
     in_path = runner.write_infile(text, ss.project_name)
     base = in_path.with_suffix("")  # projects/x/x
 
-    log_box = st.expander("Solver log", expanded=False)
     log_lines: list[str] = []
     progress = st.progress(0.0, text="Starting gprMax…")
-    status = st.empty()
 
     def on_line(line: str) -> None:
         log_lines.append(line)
@@ -721,22 +717,23 @@ def section_run() -> None:
         with st.spinner("Running gprMax…"):
             rc = runner.run_gprmax(in_path, geometry_only=do_geom,
                                    on_line=on_line)
-    # The run finished (an interrupted run raises before here and leaves the flag
-    # set — cleared on the next idle rerun — with its subprocesses terminated).
+    # Run finished. Persist the outcome + log, then rerun so the run buttons
+    # (rendered disabled at the top of this run) re-enable immediately instead of
+    # staying disabled until the next interaction. An interrupted run raises
+    # before here, leaving sim_running set (cleared on the next idle rerun) with
+    # its subprocesses already terminated.
     ss["sim_running"] = False
-    progress.empty()
-    log_box.code("\n".join(log_lines[-80:]) or "(no output)", language="text")
-
+    ss["_run_log"] = log_lines[-80:]
     if rc != 0:
-        status.error(f"gprMax exited with code {rc}. See the solver log.")
-        return
-
-    if do_geom:
-        status.success("Geometry built successfully — the model is valid.")
+        ss["_run_status"] = ("error",
+                             f"gprMax exited with code {rc}. See the solver log.")
+    elif do_geom:
+        ss["_run_status"] = ("success",
+                             "Geometry built successfully — the model is valid.")
         ss.last_run = None
     elif do_ascan:
         png = runner.plot_ascan(base.with_suffix(".out"))
-        status.success("A-scan complete.")
+        ss["_run_status"] = ("success", "A-scan complete.")
         ss.last_run = {"kind": "ascan", "png": str(png)}
     else:
         merged, png = runner.make_bscan(base)
@@ -753,13 +750,13 @@ def section_run() -> None:
         mats = build_materials()
         top = mats.get(scene.layers[0].material) if scene.layers else None
         vel = top.velocity() if top else 1.0e8
-        status.success("B-scan complete. Per-trace files cleaned up; merged "
-                       "file, B-scan image and geometry image kept.")
+        ss["_run_status"] = ("success", "B-scan complete. Per-trace files cleaned "
+                             "up; merged file, B-scan image and geometry image kept.")
         ss.last_run = {"kind": "bscan", "png": str(png), "merged": str(merged),
                        "geometry_png": str(geom_png) if geom_png else None,
                        "trace_step_m": survey.trace_step_eff_m,
                        "velocity_m_s": vel}
-    _show_last_result()
+    st.rerun()
 
 
 @st.cache_data(show_spinner=False)
@@ -770,6 +767,22 @@ def _cached_bscan_png(merged: str, component: str, cmap: str, gain: float,
     return str(runner.render_bscan(
         Path(merged), component, cmap, gain, x_unit=x_unit, y_unit=y_unit,
         trace_step_m=trace_step_m or None, velocity_m_s=velocity_m_s or None))
+
+
+def _show_run_outcome() -> None:
+    """Show the status message + solver log from the most recent run.
+
+    Set by section_run just before it reruns. The status toast shows once (it's
+    popped); the collapsed solver-log expander persists until the next run.
+    """
+    ss = st.session_state
+    status = ss.pop("_run_status", None)
+    if status:
+        (st.success if status[0] == "success" else st.error)(status[1])
+    log = ss.get("_run_log")
+    if log is not None:
+        with st.expander("Solver log", expanded=False):
+            st.code("\n".join(log) or "(no output)", language="text")
 
 
 def _show_last_result() -> None:
