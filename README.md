@@ -2,14 +2,11 @@
 
 A guided, local web app for modelling real concrete-inspection GPR scenarios.
 Build a 2D cross-section (layers + rebar + conduits + voids), preview it, and run
-a B-scan that approximates real GPR gear — the **Proceq GP8000** by default.
+B-scans
 
-gprStudio is a [Streamlit](https://streamlit.io) front-end. The heavy lifting —
-solving Maxwell's equations with the FDTD method — is done by
+gprStudio is a [Streamlit](https://streamlit.io) front-end. The underlying simulation is done by
 [**gprMax**](http://www.gprmax.com), which is **vendored** into this repository
-under [`vendor/gprMax/`](vendor/gprMax/) as a self-contained dependency. This
-repo is the studio (my work); gprMax is an unmodified upstream dependency living
-underneath it, not a fork.
+under [`vendor/gprMax/`](vendor/gprMax/) as a self-contained dependency. 
 
 ## Repository layout
 
@@ -62,22 +59,6 @@ or directly:
 
 Your browser opens the app. Walk the four tabs: **Equipment & survey →
 Materials → Geometry & preview → Run & results**.
-
-## Self-test
-
-A headless end-to-end check (build → preview → geometry-only solve):
-
-```powershell
-python -m gpr_studio.verify_studio            # geometry-only + preview
-python -m gpr_studio.verify_studio --bscan    # + a short B-scan run
-```
-
-## Updating the vendored gprMax
-
-`vendor/gprMax/` is a plain copy of upstream gprMax. To update it, drop in a
-newer gprMax source tree (or re-copy from a clone), rebuild the extensions, and
-commit. Nothing in `gpr_studio/` needs to change as long as gprMax's public
-interface (`python -m gprMax`, the `tools` package) is unchanged.
 
 ## Licensing
 
