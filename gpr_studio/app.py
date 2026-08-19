@@ -649,19 +649,22 @@ def section_run() -> None:
     st.caption(f"Ready to simulate **{scene.title}** — "
                f"{survey.num_traces} traces, {survey.dx_m*1000:.2f} mm cells.")
 
-    # Split the B-scan traces across worker processes (CPU task farm).
+    # B-scan parallelism is tucked behind a small settings popover to keep the
+    # tab uncluttered. The slider still binds to `bscan_workers`, so its value is
+    # available whether or not the popover is open.
     cores = os.cpu_count() or 4
     default_workers = runner.auto_workers(survey.num_traces)
-    workers = st.slider(
-        "⚡ Parallel workers (B-scan)", 1, cores, default_workers,
-        key="bscan_workers",
-        help="Split the B-scan traces across this many gprMax processes. "
-             "~8 is the sweet spot (beyond that these small models saturate "
-             "memory bandwidth). Results are identical to a sequential run. "
-             "Set to 1 to keep the machine responsive.")
-    threads_per = max(1, cores // workers)
-    st.caption(f"{workers} worker(s) × {threads_per} thread(s) — uses "
-               f"`--geometry-fixed` (geometry built once, only the antenna moves).")
+    with st.popover("⚙️ Performance", help="B-scan parallel worker settings"):
+        workers = st.slider(
+            "⚡ Parallel workers (B-scan)", 1, cores, default_workers,
+            key="bscan_workers",
+            help="Split the B-scan traces across this many gprMax processes. "
+                 "~8 is the sweet spot (beyond that these small models saturate "
+                 "memory bandwidth). Results are identical to a sequential run. "
+                 "Set to 1 to keep the machine responsive.")
+        threads_per = max(1, cores // workers)
+        st.caption(f"{workers} worker(s) × {threads_per} thread(s) — uses "
+                   f"`--geometry-fixed` (geometry built once, only the antenna moves).")
 
     running = ss.get("sim_running", False)
     c1, c2, c3 = st.columns(3)
