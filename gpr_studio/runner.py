@@ -134,6 +134,28 @@ def gpu_status() -> dict:
             "ready": ready, "message": msg}
 
 
+def gpu_utilization(device: int = 0) -> dict | None:
+    """Live GPU utilisation + memory for one CUDA device, via ``nvidia-smi``.
+
+    Returns ``{'util': %, 'mem_used': MiB, 'mem_total': MiB}`` or ``None`` if
+    unavailable. Cheap enough (~tens of ms) to poll a few times a second while a
+    run is in progress.
+    """
+    smi = shutil.which("nvidia-smi")
+    if not smi:
+        return None
+    try:
+        out = subprocess.run(
+            [smi, "--query-gpu=utilization.gpu,memory.used,memory.total",
+             "--format=csv,noheader,nounits", "-i", str(device)],
+            capture_output=True, text=True, timeout=4)
+        line = out.stdout.strip().splitlines()[0]
+        util, used, total = (int(p.strip()) for p in line.split(","))
+        return {"util": util, "mem_used": used, "mem_total": total}
+    except Exception:  # noqa: BLE001 - telemetry, never fatal
+        return None
+
+
 def run_gprmax(in_path: Path, n_traces: int | None = None,
                geometry_only: bool = False,
                on_line: Callable[[str], None] | None = None,

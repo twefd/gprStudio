@@ -736,9 +736,20 @@ def section_run() -> None:
         gpu_arg = gpu_device if use_gpu else None
         unit = "GPU worker" if use_gpu else "worker"
 
+        gpu_peak = {"util": 0}  # track peak GPU load across the run
+
         def on_prog(done: int, tot: int) -> None:
-            where = (f"GPU {gpu_device} · {workers} workers" if use_gpu
-                     else f"{workers}×{threads_per} threads")
+            if use_gpu:
+                g = runner.gpu_utilization(gpu_device)
+                if g:
+                    gpu_peak["util"] = max(gpu_peak["util"], g["util"])
+                    load = (f" · GPU {g['util']}% · "
+                            f"{g['mem_used']/1024:.1f}/{g['mem_total']/1024:.1f} GB")
+                else:
+                    load = ""
+                where = f"GPU {gpu_device} · {workers} workers{load}"
+            else:
+                where = f"{workers}×{threads_per} threads"
             progress.progress(done / max(tot, 1),
                               text=f"Simulating trace {done}/{tot} · {where}")
 
@@ -747,6 +758,9 @@ def section_run() -> None:
                                                  on_progress=on_prog,
                                                  gpu=gpu_arg)
         log_lines = plog.splitlines()
+        if use_gpu and gpu_peak["util"]:
+            st.caption(f"⚡ Peak GPU load during the run: {gpu_peak['util']}% "
+                       "— raise **GPU workers** if it stayed low on a small model.")
     else:
         # A-scan honours the GPU toggle; geometry-only never needs the solver.
         gpu_arg = gpu_device if (use_gpu and do_ascan) else None
